@@ -67,47 +67,39 @@ STATUS_COL   <- c(R = "#0F766E", BR = "#C87F5A", LA = "#A32E2A")
 # =============================================================
 #  Vessel colour coding
 #    Arteries are always red, veins always blue.
-#    Involvement is shown only by the highlight around a vessel:
-#      none  = no tumour contact
-#      blue  = contact, still resectable
-#      amber = contact conferring borderline status
-#      dark  = contact conferring locally advanced status
+#    A single amber highlight marks any vessel the tumour touches;
+#    the degree of contact is not graded by colour.
 # =============================================================
 
-# Vessels keep their anatomical colour at all times: arteries red,
-# veins blue. Involvement is shown ONLY by the highlight around them.
 ART   <- "#C0392B"     # every artery
 VEIN  <- "#3A6EA5"     # every vein
 
 HALO_NONE <- "none"
-HALO_OK   <- "#7FB3D5"   # contact, but still resectable
-HALO_BR   <- "#F0A830"   # contact conferring borderline
-HALO_LA   <- "#5B1A14"   # contact conferring locally advanced
+HALO      <- "#F0A830"   # tumour contact, whatever the degree
 
 # each returns list(col = vessel colour, halo = highlight colour)
 v_smv <- function(x) switch(x,
   none  = list(col = VEIN, halo = HALO_NONE),
-  le180 = list(col = VEIN, halo = HALO_OK),
-  irreg = list(col = VEIN, halo = HALO_BR),
-  gt180 = list(col = VEIN, halo = HALO_BR),
-  unrec = list(col = VEIN, halo = HALO_LA))
+  le180 = list(col = VEIN, halo = HALO),
+  irreg = list(col = VEIN, halo = HALO),
+  gt180 = list(col = VEIN, halo = HALO),
+  unrec = list(col = VEIN, halo = HALO))
 
 v_sma <- function(x) switch(x,
   none  = list(col = ART, halo = HALO_NONE),
-  le180 = list(col = ART, halo = HALO_BR),
-  gt180 = list(col = ART, halo = HALO_LA))
+  le180 = list(col = ART, halo = HALO),
+  gt180 = list(col = ART, halo = HALO))
 
 v_cha <- function(x) switch(x,
   none    = list(col = ART, halo = HALO_NONE),
-  contact = list(col = ART, halo = HALO_BR),
-  extend  = list(col = ART, halo = HALO_LA))
+  contact = list(col = ART, halo = HALO),
+  extend  = list(col = ART, halo = HALO))
 
 v_ca <- function(x, loc) switch(x,
   none  = list(col = ART, halo = HALO_NONE),
-  le180 = list(col = ART, halo = HALO_BR),
-  gt180 = list(col = ART,
-               halo = if (loc == "head") HALO_LA else HALO_BR),
-  aorta = list(col = ART, halo = HALO_LA))
+  le180 = list(col = ART, halo = HALO),
+  gt180 = list(col = ART, halo = HALO),
+  aorta = list(col = ART, halo = HALO))
 
 # draws a vessel: the highlight underneath, then the vessel itself.
 # Where two vessels cross, the one drawn later lies in front.
@@ -129,50 +121,57 @@ draw_anatomy <- function(loc, size, smv, sma, ca, cha) {
 
   s_smv <- v_smv(smv); s_sma <- v_sma(sma)
   s_cha <- v_cha(cha); s_ca  <- v_ca(ca, loc)
-  ao <- identical(ca, "aorta")          # aortic involvement
+  ao <- identical(ca, "aorta")
+  plain_a <- list(col = ART,  halo = HALO_NONE)   # not assessed
+  plain_v <- list(col = VEIN, halo = HALO_NONE)
 
   r <- 12 + size * 0.55
-  if (loc == "head") { tx <- 152; ty <- 158 } else { tx <- 296; ty <- 116 }
+  if (loc == "head") { tx <- 168; ty <- 160 } else { tx <- 310; ty <- 114 }
 
   paste0(
   '<svg viewBox="0 0 460 250" width="100%" style="display:block">',
 
-  # ---- inferior vena cava, on the patient right of the aorta ----
-  '<rect x="226" y="12" width="17" height="228" rx="8" fill="', VEIN,
+  # ---- inferior vena cava, immediately right of the aorta ----
+  '<rect x="218" y="12" width="18" height="228" rx="9" fill="', VEIN,
   '" opacity="0.45"/>',
 
   # ---- aorta: highlighted only when the tumour involves it ----
   if (ao) paste0(
-    '<rect x="238" y="8" width="31" height="236" rx="14" fill="', HALO_LA,
-    '" opacity="0.45"/>') else "",
-  '<rect x="248" y="12" width="15" height="228" rx="7" fill="', ART,
+    '<rect x="244" y="8" width="32" height="236" rx="15" fill="', HALO,
+    '" opacity="0.5"/>') else "",
+  '<rect x="252" y="12" width="16" height="228" rx="8" fill="', ART,
   '" opacity="', if (ao) "1" else "0.45", '"/>',
 
-  # ---- portal vein: drawn first, so it lies posterior to the
-  #      hepatic artery, and runs towards the patient right
-  vessel("M196,238 L196,152 Q194,98 118,48", s_smv, 11),
+  # ---- SMV / portal vein: ascends in front of the IVC, immediately
+  #      to the patient right of the SMA, then passes posterior to
+  #      the hepatic artery on its way to the porta
+  vessel("M224,238 L224,150 Q220,96 138,52", s_smv, 11),
 
-  # ---- arteries ----
-  vessel("M248,74 L226,74", s_ca, 9),
-  vessel("M226,74 Q290,62 356,84", s_ca, 8),
-  vessel("M248,112 L232,112 L232,238", s_sma, 9),
+  # ---- splenic vein: joins the SMV at the confluence ----
+  vessel("M374,120 Q300,138 230,152", plain_v, 9),
 
-  # common hepatic artery, then its division into PHA and GDA
-  vessel("M226,74 Q210,62 190,56", s_cha, 8),
-  vessel("M190,56 Q170,44 140,34", s_cha, 7),
-  vessel("M190,56 Q176,100 158,148",
-         list(col = ART, halo = HALO_NONE), 6),
+  # ---- SMA: arises from the front of the aorta and descends
+  #      immediately to the patient left of the SMV
+  vessel("M252,104 L244,104 L244,238", s_sma, 9),
 
-  # ---- splenic vein: anterior to the aorta and SMA on its way to
-  #      the confluence, but still behind the gland
-  vessel("M372,116 Q292,132 200,150",
-         list(col = VEIN, halo = HALO_NONE), 9),
+  # ---- coeliac trunk and its three branches ----
+  vessel("M252,68 L236,64", s_ca, 9),
+  vessel("M240,64 Q234,42 246,22", plain_a, 5),      # left gastric
+  vessel("M236,64 Q300,50 374,72", plain_a, 7),      # splenic artery
+  vessel("M236,64 Q216,58 196,54", s_cha, 8),        # common hepatic
+
+  # ---- CHA divides into PHA and GDA ----
+  vessel("M196,54 Q174,44 150,34", s_cha, 7),
+  # GDA leaves the CHA at the upper border of the duodenum, then
+  # descends in the groove between the head and the neck, anterior
+  # to the gland and lateral to the portal vein
+  vessel("M196,54 Q196,90 186,124 Q180,150 184,176", plain_a, 6),
 
   # ---- pancreas: translucent, drawn over the vessels ----
   '<g fill="#F2CFC9" opacity="0.55" stroke="none">',
-  '<path d="M186,132 Q240,112 300,108 Q346,104 372,96 L378,116
-            Q346,126 300,130 Q240,136 190,164 Z"/>',
-  '<ellipse cx="150" cy="160" rx="44" ry="36"/>',
+  '<path d="M200,126 Q262,102 322,96 Q364,92 392,84 L396,110
+            Q364,120 322,132 Q262,138 204,170 Z"/>',
+  '<ellipse cx="168" cy="160" rx="46" ry="38"/>',
   '</g>',
 
   # ---- tumour ----
@@ -187,7 +186,7 @@ draw_anatomy <- function(loc, size, smv, sma, ca, cha) {
 # =============================================================
 
 ui <- fluidPage(
-  title = "PDAC Preoperative prediction of R1 resection",
+  title = "Preoperative prediction of R1 resection in Pancreatic Ductal Adenocarcinoma",
 
   tags$head(
     tags$link(rel = "stylesheet",
@@ -272,7 +271,7 @@ ui <- fluidPage(
     div(class = "hero",
       if (!is.null(HEADER_IMAGE)) tags$img(src = HEADER_IMAGE, alt = ""),
       div(class = if (is.null(HEADER_IMAGE)) "hero-bar solo" else "hero-bar",
-        h1("PDAC Preoperative prediction of R1 resection")
+        h1("Preoperative prediction of R1 resection in Pancreatic Ductal Adenocarcinoma.")
       )
     ),
 
@@ -327,12 +326,14 @@ ui <- fluidPage(
         div(class = "card",
           p(class = "eyebrow", "NCCN resectability status"),
           uiOutput("status")
-        ),
-        div(class = "card",
-          p(class = "eyebrow", "Risk across tumour size"),
-          plotOutput("curve", height = "200px")
         )
       )
+    ),
+
+    # ---- full-width chart ----
+    div(class = "card",
+      p(class = "eyebrow", "Risk across tumour size"),
+      plotOutput("curve", height = "330px")
     ),
 
     div(class = "card", uiOutput("meta")),
@@ -387,21 +388,31 @@ server <- function(input, output) {
 
   output$curve <- renderPlot({
     sizes <- seq(5, 60, by = 1)
+    cur   <- status()
+    p     <- p_now()
+
     ps <- vapply(sizes, function(s)
-      risk(s, input$ca199, status(), as.numeric(input$neoadj)), numeric(1))
-    p <- p_now()
-    par(mar = c(3.4, 4.2, 0.6, 0.6), family = "sans", las = 1)
-    plot(sizes, ps, type = "n", ylim = c(0, 1), xlab = "", ylab = "", axes = FALSE)
-    abline(h = seq(0, 1, 0.2), col = "#EDF1F4")
+      risk(s, input$ca199, cur, as.numeric(input$neoadj)), numeric(1))
+
+    par(mar = c(4.2, 5, 1.2, 1.6), family = "sans", las = 1)
+    plot(sizes, ps, type = "n", ylim = c(0, 1),
+         xlab = "", ylab = "", axes = FALSE)
+
+    abline(h = seq(0, 1, 0.2), col = "#EDF1F4", lwd = 1)
     abline(h = CUTOFF, lty = 2, lwd = 1.4, col = "#B4C0C9")
-    lines(sizes, ps, lwd = 2.6, col = "#2F6F9F")
-    points(input$size, p, pch = 21, cex = 1.7, lwd = 2,
+
+    lines(sizes, ps, lwd = 3, col = "#2F6F9F")
+
+    points(input$size, p, pch = 21, cex = 2.1, lwd = 2.4,
            bg = if (p >= CUTOFF) "#A32E2A" else "#0F766E", col = "white")
-    axis(1, at = seq(5, 60, 5), cex.axis = 0.8, col = "#D6DEE4",
-         col.axis = "#71828F", tck = -0.02)
+
+    axis(1, at = seq(5, 60, 5), cex.axis = 0.9, col = "#D6DEE4",
+         col.axis = "#71828F", tck = -0.018)
     axis(2, at = seq(0, 1, 0.2), labels = paste0(seq(0, 100, 20), "%"),
-         cex.axis = 0.8, col = "#D6DEE4", col.axis = "#71828F", tck = -0.02)
-    mtext("Tumour size (mm)", side = 1, line = 2.2, cex = 0.82, col = "#71828F")
+         cex.axis = 0.9, col = "#D6DEE4", col.axis = "#71828F", tck = -0.018)
+    mtext("Tumour size (mm)", side = 1, line = 2.7, cex = 0.9, col = "#71828F")
+    mtext("Probability of R1", side = 2, line = 3.6, cex = 0.9,
+          col = "#71828F", las = 0)
   })
 
   output$meta <- renderUI({
