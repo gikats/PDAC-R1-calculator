@@ -1,7 +1,5 @@
 # =============================================================
-#  Preoperative R1 Resection Risk Calculator  --  DEMO BUILD
-#  Pancreatic ductal adenocarcinoma (PDAC)
-#  1st Department of Surgery, School of Medicine, NKUA
+#  PDAC Preoperative prediction of R1 resection  --  DEMO BUILD
 #
 #  Vascular involvement is entered vessel by vessel and the
 #  NCCN resectability category is derived automatically.
@@ -68,22 +66,65 @@ STATUS_COL   <- c(R = "#0F766E", BR = "#C87F5A", LA = "#A32E2A")
 
 # =============================================================
 #  Vessel colour coding
-#    grey   = no contact
-#    blue   = contact that still permits resectable status
-#    amber  = contact conferring borderline status
-#    red    = contact conferring locally advanced status
+#    Arteries are always red, veins always blue.
+#    Involvement is shown only by the highlight around a vessel:
+#      none  = no tumour contact
+#      blue  = contact, still resectable
+#      amber = contact conferring borderline status
+#      dark  = contact conferring locally advanced status
 # =============================================================
 
-COL_NONE <- "#9AAAB6"; COL_OK <- "#4F86A8"
-COL_BR   <- "#C87F5A"; COL_LA <- "#A32E2A"
+# Vessels keep their anatomical colour at all times: arteries red,
+# veins blue. Involvement is shown ONLY by the highlight around them.
+ART   <- "#C0392B"     # every artery
+VEIN  <- "#3A6EA5"     # every vein
 
-col_smv <- function(x) switch(x, none = COL_NONE, le180 = COL_OK,
-                              irreg = COL_BR, gt180 = COL_BR, unrec = COL_LA)
-col_sma <- function(x) switch(x, none = COL_NONE, le180 = COL_BR, gt180 = COL_LA)
-col_cha <- function(x) switch(x, none = COL_NONE, contact = COL_BR, extend = COL_LA)
-col_ca  <- function(x, loc) switch(x, none = COL_NONE, le180 = COL_BR,
-                                   gt180 = if (loc == "head") COL_LA else COL_BR,
-                                   aorta = COL_LA)
+HALO_NONE <- "none"
+HALO_OK   <- "#7FB3D5"   # contact, but still resectable
+HALO_BR   <- "#F0A830"   # contact conferring borderline
+HALO_LA   <- "#5B1A14"   # contact conferring locally advanced
+
+# each returns list(col = vessel colour, halo = highlight colour)
+v_smv <- function(x) switch(x,
+  none  = list(col = VEIN, halo = HALO_NONE),
+  le180 = list(col = VEIN, halo = HALO_OK),
+  irreg = list(col = VEIN, halo = HALO_BR),
+  gt180 = list(col = VEIN, halo = HALO_BR),
+  unrec = list(col = VEIN, halo = HALO_LA))
+
+v_sma <- function(x) switch(x,
+  none  = list(col = ART, halo = HALO_NONE),
+  le180 = list(col = ART, halo = HALO_BR),
+  gt180 = list(col = ART, halo = HALO_LA))
+
+v_cha <- function(x) switch(x,
+  none    = list(col = ART, halo = HALO_NONE),
+  contact = list(col = ART, halo = HALO_BR),
+  extend  = list(col = ART, halo = HALO_LA))
+
+v_ca <- function(x, loc) switch(x,
+  none  = list(col = ART, halo = HALO_NONE),
+  le180 = list(col = ART, halo = HALO_BR),
+  gt180 = list(col = ART,
+               halo = if (loc == "head") HALO_LA else HALO_BR),
+  aorta = list(col = ART, halo = HALO_LA))
+
+# draws a vessel.
+#   casing = TRUE puts a white outline around it, so that where two
+#   vessels cross, the one drawn later reads as lying in front.
+#   Arteries get a casing; the portal vein does not, because it runs
+#   posterior to them.
+vessel <- function(d, v, w, casing = FALSE) {
+  cas <- if (!casing) "" else paste0(
+    '<path d="', d, '" stroke="#FFFFFF" stroke-width="', w + 13,
+    '" stroke-linecap="round" fill="none"/>')
+  halo <- if (v$halo == "none") "" else paste0(
+    '<path d="', d, '" stroke="', v$halo, '" stroke-width="', w + 8,
+    '" stroke-linecap="round" fill="none" opacity="0.45"/>')
+  paste0(cas, halo,
+    '<path d="', d, '" stroke="', v$col, '" stroke-width="', w,
+    '" stroke-linecap="round" fill="none"/>')
+}
 
 # =============================================================
 #  Anatomical schematic — differs by tumour location
@@ -92,75 +133,83 @@ col_ca  <- function(x, loc) switch(x, none = COL_NONE, le180 = COL_BR,
 
 draw_anatomy <- function(loc, size, smv, sma, ca, cha) {
 
-  c_smv <- col_smv(smv); c_sma <- col_sma(sma)
-  c_cha <- col_cha(cha); c_ca  <- col_ca(ca, loc)
+  s_smv <- v_smv(smv); s_sma <- v_sma(sma)
+  s_cha <- v_cha(cha); s_ca  <- v_ca(ca, loc)
+  ao <- identical(ca, "aorta")          # aortic involvement
 
-  r <- 12 + size * 0.55                       # tumour radius
+  r <- 12 + size * 0.55
   if (loc == "head") { tx <- 152; ty <- 158 } else { tx <- 296; ty <- 116 }
 
   paste0(
   '<svg viewBox="0 0 460 250" width="100%" style="display:block">',
 
-  # ---- aorta (neutral reference) ----
-  '<rect x="246" y="12" width="15" height="228" rx="7" fill="#CBD5DC"/>',
-  '<text x="268" y="232" font-family="Inter,sans-serif" font-size="10"
-         fill="#9AAAB6">aorta</text>',
+  # ---- aorta: lights up when the tumour involves it ----
+  if (ao) paste0(
+    '<rect x="238" y="8" width="31" height="236" rx="14" fill="', HALO_LA,
+    '" opacity="0.45"/>') else "",
+  '<rect x="246" y="12" width="15" height="228" rx="7" fill="',
+  ART, '" opacity="', if (ao) "1" else "0.45", '"/>',
+  '<text x="272" y="232" font-family="Inter,sans-serif" font-size="10"
+         font-weight="', if (ao) "600" else "400", '" fill="',
+  ART, '">aorta</text>',
 
-  # ---- coeliac axis + branches ----
-  '<path d="M246,74 L226,74" stroke="', c_ca, '" stroke-width="9"
-         stroke-linecap="round" fill="none"/>',
-  '<path d="M226,74 Q196,80 158,92" stroke="', c_cha, '" stroke-width="8"
-         stroke-linecap="round" fill="none"/>',
-  '<path d="M226,74 Q290,62 356,84" stroke="', c_ca, '" stroke-width="8"
-         stroke-linecap="round" fill="none"/>',
+  # ---- portal vein: drawn FIRST, so it lies posterior to the
+  #      hepatic artery, and runs lateral (towards the patient right)
+  vessel("M196,238 L196,152 Q194,98 118,48", s_smv, 11),
 
-  # ---- SMA ----
-  '<path d="M246,112 L230,112 L230,238" stroke="', c_sma, '" stroke-width="9"
-         stroke-linecap="round" fill="none"/>',
+  # ---- arteries: drawn after the vein, with a white casing ----
+  vessel("M246,74 L226,74", s_ca, 9, casing = TRUE),
+  vessel("M226,74 Q290,62 356,84", s_ca, 8, casing = TRUE),
+  vessel("M246,112 L230,112 L230,238", s_sma, 9, casing = TRUE),
 
-  # ---- SMV / portal vein ----
-  '<path d="M196,238 L196,128 Q196,104 172,88" stroke="', c_smv, '"
-         stroke-width="11" stroke-linecap="round" fill="none"/>',
+  # common hepatic artery, then its division
+  vessel("M226,74 Q210,62 190,56", s_cha, 8, casing = TRUE),
+  vessel("M190,56 Q170,44 140,34", s_cha, 7, casing = TRUE),
+  vessel("M190,56 Q176,100 158,148",
+         list(col = ART, halo = HALO_NONE), 6, casing = TRUE),
 
-  # ---- pancreas: head + neck + body/tail ----
-  '<ellipse cx="150" cy="160" rx="44" ry="36" fill="#E9EEF2"
-            stroke="#CBD6DE" stroke-width="1.5"/>',
+  # ---- splenic vein: passes anterior to the aorta and SMA on its
+  #      way to the confluence, but stays behind the gland
+  vessel("M372,116 Q292,132 200,150",
+         list(col = VEIN, halo = HALO_NONE), 9, casing = TRUE),
+
+  # ---- pancreas: translucent, drawn over the vessels ----
+  '<g fill="#F2CFC9" opacity="0.55" stroke="none">',
   '<path d="M186,132 Q240,112 300,108 Q346,104 372,96 L378,116
-            Q346,126 300,130 Q240,136 190,164 Z"
-         fill="#E9EEF2" stroke="#CBD6DE" stroke-width="1.5"/>',
-
-  # ---- duodenum around the head ----
-  '<path d="M112,124 Q78,160 116,200" stroke="#D8E0E6" stroke-width="13"
-         stroke-linecap="round" fill="none"/>',
-
-  # ---- spleen ----
-  '<ellipse cx="404" cy="98" rx="20" ry="27" fill="#DCE4E9"
-            stroke="#CBD6DE" stroke-width="1.5"/>',
+            Q346,126 300,130 Q240,136 190,164 Z"/>',
+  '<ellipse cx="150" cy="160" rx="44" ry="36"/>',
+  '</g>',
 
   # ---- tumour ----
   '<circle cx="', tx, '" cy="', ty, '" r="', round(r, 1),
-  '" fill="#16232E" opacity="0.85"/>',
+  '" fill="#16232E" opacity="0.82"/>',
   '<text x="', tx, '" y="', round(ty + r + 15),
   '" text-anchor="middle" font-family="Inter,sans-serif" font-size="11"
      font-weight="600" fill="#16232E">', size, ' mm</text>',
 
   # ---- vessel labels ----
-  '<text x="180" y="80" text-anchor="end" font-family="Inter,sans-serif"
-         font-size="10.5" font-weight="600" fill="', c_smv, '">SMV / PV</text>',
+  '<text x="112" y="74" text-anchor="middle" font-family="Inter,sans-serif"
+         font-size="10.5" font-weight="600" fill="', s_smv$col, '">SMV / PV</text>',
   '<text x="238" y="234" font-family="Inter,sans-serif" font-size="10.5"
-         font-weight="600" fill="', c_sma, '">SMA</text>',
-  '<text x="222" y="60" text-anchor="end" font-family="Inter,sans-serif"
-         font-size="10.5" font-weight="600" fill="', c_ca, '">CA</text>',
-  '<text x="150" y="86" text-anchor="end" font-family="Inter,sans-serif"
-         font-size="10.5" font-weight="600" fill="', c_cha, '">CHA</text>',
-  '<text x="352" y="74" font-family="Inter,sans-serif" font-size="10"
-         fill="#9AAAB6">splenic a.</text>',
+         font-weight="600" fill="', s_sma$col, '">SMA</text>',
+  '<text x="222" y="58" text-anchor="end" font-family="Inter,sans-serif"
+         font-size="10.5" font-weight="600" fill="', s_ca$col, '">CA</text>',
+  '<text x="214" y="46" text-anchor="middle" font-family="Inter,sans-serif"
+         font-size="10.5" font-weight="600" fill="', s_cha$col, '">CHA</text>',
+  '<text x="166" y="26" text-anchor="middle" font-family="Inter,sans-serif"
+         font-size="10.5" font-weight="600" fill="', s_cha$col, '">PHA</text>',
+  '<text x="206" y="90" font-family="Inter,sans-serif" font-size="10"
+         fill="#C0392B">GDA</text>',
+  '<text x="352" y="70" font-family="Inter,sans-serif" font-size="10"
+         fill="#C0392B">splenic a.</text>',
+  '<text x="356" y="136" font-family="Inter,sans-serif" font-size="10"
+         fill="#3A6EA5">splenic v.</text>',
 
   # ---- organ labels ----
-  '<text x="150" y="215" text-anchor="middle" font-family="Inter,sans-serif"
-         font-size="10" fill="#9AAAB6">head / uncinate</text>',
-  '<text x="320" y="150" text-anchor="middle" font-family="Inter,sans-serif"
-         font-size="10" fill="#9AAAB6">body / tail</text>',
+  '<text x="150" y="216" text-anchor="middle" font-family="Inter,sans-serif"
+         font-size="10" fill="#A9B6C0">head / uncinate</text>',
+  '<text x="322" y="152" text-anchor="middle" font-family="Inter,sans-serif"
+         font-size="10" fill="#A9B6C0">body / tail</text>',
 
   '</svg>')
 }
@@ -170,7 +219,7 @@ draw_anatomy <- function(loc, size, smv, sma, ca, cha) {
 # =============================================================
 
 ui <- fluidPage(
-  title = "PDAC R1 Risk Calculator (demo)",
+  title = "PDAC Preoperative prediction of R1 resection",
 
   tags$head(
     tags$link(rel = "stylesheet",
@@ -255,8 +304,7 @@ ui <- fluidPage(
     div(class = "hero",
       if (!is.null(HEADER_IMAGE)) tags$img(src = HEADER_IMAGE, alt = ""),
       div(class = if (is.null(HEADER_IMAGE)) "hero-bar solo" else "hero-bar",
-        h1("Preoperative prediction of R1 resection"),
-        tags$p("Pancreatic ductal adenocarcinoma \u00b7 1st Department of Surgery, School of Medicine, NKUA")
+        h1("PDAC Preoperative prediction of R1 resection")
       )
     ),
 
@@ -304,19 +352,16 @@ ui <- fluidPage(
           p(class = "eyebrow", "Tumour\u2013vessel relationship"),
           uiOutput("anatomy"),
           div(class = "legend",
-            tags$span(tags$i(style = "background:#9AAAB6"), "no contact"),
-            tags$span(tags$i(style = "background:#4F86A8"), "resectable"),
-            tags$span(tags$i(style = "background:#C87F5A"), "borderline"),
-            tags$span(tags$i(style = "background:#A32E2A"), "locally advanced")
+            tags$span(tags$i(style = "background:#C0392B"), "artery"),
+            tags$span(tags$i(style = "background:#3A6EA5"), "vein"),
+            tags$span(tags$i(style = "background:#7FB3D5"), "contact, resectable"),
+            tags$span(tags$i(style = "background:#F0A830"), "borderline"),
+            tags$span(tags$i(style = "background:#5B1A14"), "locally advanced")
           )
         ),
         div(class = "card",
-          p(class = "eyebrow", "Derived NCCN resectability status"),
-          uiOutput("status"),
-          div(style = "font-size:11.5px;color:var(--muted);margin-top:14px;line-height:1.6;",
-              "Derived from the vessel findings on the left. Venous and arterial ",
-              "criteria differ: \u2264180\u00b0 smooth venous contact remains resectable, ",
-              "whereas any SMA contact is already borderline.")
+          p(class = "eyebrow", "NCCN resectability status"),
+          uiOutput("status")
         ),
         div(class = "card",
           p(class = "eyebrow", "Probability of R1"),
