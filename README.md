@@ -7,8 +7,6 @@
 Preoperative prediction of R1 resection in pancreatic ductal adenocarcinoma.
 Retrospective cohort study (2021–2025).
 
-1st Department of Surgery, School of Medicine,
-National and Kapodistrian University of Athens.
 
 **Live calculator:** <!-- add URL once Pages is live -->
 
