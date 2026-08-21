@@ -349,6 +349,10 @@ ui <- fluidPage(
 
       column(6,
         div(class = "card",
+          p(class = "eyebrow", "Probability of R1"),
+          uiOutput("readout")
+        ),
+        div(class = "card",
           p(class = "eyebrow", "Tumour\u2013vessel relationship"),
           uiOutput("anatomy"),
           div(class = "legend",
@@ -362,10 +366,6 @@ ui <- fluidPage(
         div(class = "card",
           p(class = "eyebrow", "NCCN resectability status"),
           uiOutput("status")
-        ),
-        div(class = "card",
-          p(class = "eyebrow", "Probability of R1"),
-          uiOutput("readout")
         ),
         div(class = "card",
           p(class = "eyebrow", "Risk across tumour size"),
