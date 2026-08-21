@@ -109,19 +109,13 @@ v_ca <- function(x, loc) switch(x,
                halo = if (loc == "head") HALO_LA else HALO_BR),
   aorta = list(col = ART, halo = HALO_LA))
 
-# draws a vessel.
-#   casing = TRUE puts a white outline around it, so that where two
-#   vessels cross, the one drawn later reads as lying in front.
-#   Arteries get a casing; the portal vein does not, because it runs
-#   posterior to them.
-vessel <- function(d, v, w, casing = FALSE) {
-  cas <- if (!casing) "" else paste0(
-    '<path d="', d, '" stroke="#FFFFFF" stroke-width="', w + 13,
-    '" stroke-linecap="round" fill="none"/>')
+# draws a vessel: the highlight underneath, then the vessel itself.
+# Where two vessels cross, the one drawn later lies in front.
+vessel <- function(d, v, w) {
   halo <- if (v$halo == "none") "" else paste0(
-    '<path d="', d, '" stroke="', v$halo, '" stroke-width="', w + 8,
-    '" stroke-linecap="round" fill="none" opacity="0.45"/>')
-  paste0(cas, halo,
+    '<path d="', d, '" stroke="', v$halo, '" stroke-width="', w + 9,
+    '" stroke-linecap="round" fill="none" opacity="0.5"/>')
+  paste0(halo,
     '<path d="', d, '" stroke="', v$col, '" stroke-width="', w,
     '" stroke-linecap="round" fill="none"/>')
 }
@@ -143,35 +137,36 @@ draw_anatomy <- function(loc, size, smv, sma, ca, cha) {
   paste0(
   '<svg viewBox="0 0 460 250" width="100%" style="display:block">',
 
-  # ---- aorta: lights up when the tumour involves it ----
+  # ---- inferior vena cava, on the patient right of the aorta ----
+  '<rect x="226" y="12" width="17" height="228" rx="8" fill="', VEIN,
+  '" opacity="0.45"/>',
+
+  # ---- aorta: highlighted only when the tumour involves it ----
   if (ao) paste0(
     '<rect x="238" y="8" width="31" height="236" rx="14" fill="', HALO_LA,
     '" opacity="0.45"/>') else "",
-  '<rect x="246" y="12" width="15" height="228" rx="7" fill="',
-  ART, '" opacity="', if (ao) "1" else "0.45", '"/>',
-  '<text x="272" y="232" font-family="Inter,sans-serif" font-size="10"
-         font-weight="', if (ao) "600" else "400", '" fill="',
-  ART, '">aorta</text>',
+  '<rect x="248" y="12" width="15" height="228" rx="7" fill="', ART,
+  '" opacity="', if (ao) "1" else "0.45", '"/>',
 
-  # ---- portal vein: drawn FIRST, so it lies posterior to the
-  #      hepatic artery, and runs lateral (towards the patient right)
+  # ---- portal vein: drawn first, so it lies posterior to the
+  #      hepatic artery, and runs towards the patient right
   vessel("M196,238 L196,152 Q194,98 118,48", s_smv, 11),
 
-  # ---- arteries: drawn after the vein, with a white casing ----
-  vessel("M246,74 L226,74", s_ca, 9, casing = TRUE),
-  vessel("M226,74 Q290,62 356,84", s_ca, 8, casing = TRUE),
-  vessel("M246,112 L230,112 L230,238", s_sma, 9, casing = TRUE),
+  # ---- arteries ----
+  vessel("M248,74 L226,74", s_ca, 9),
+  vessel("M226,74 Q290,62 356,84", s_ca, 8),
+  vessel("M248,112 L232,112 L232,238", s_sma, 9),
 
-  # common hepatic artery, then its division
-  vessel("M226,74 Q210,62 190,56", s_cha, 8, casing = TRUE),
-  vessel("M190,56 Q170,44 140,34", s_cha, 7, casing = TRUE),
+  # common hepatic artery, then its division into PHA and GDA
+  vessel("M226,74 Q210,62 190,56", s_cha, 8),
+  vessel("M190,56 Q170,44 140,34", s_cha, 7),
   vessel("M190,56 Q176,100 158,148",
-         list(col = ART, halo = HALO_NONE), 6, casing = TRUE),
+         list(col = ART, halo = HALO_NONE), 6),
 
-  # ---- splenic vein: passes anterior to the aorta and SMA on its
-  #      way to the confluence, but stays behind the gland
+  # ---- splenic vein: anterior to the aorta and SMA on its way to
+  #      the confluence, but still behind the gland
   vessel("M372,116 Q292,132 200,150",
-         list(col = VEIN, halo = HALO_NONE), 9, casing = TRUE),
+         list(col = VEIN, halo = HALO_NONE), 9),
 
   # ---- pancreas: translucent, drawn over the vessels ----
   '<g fill="#F2CFC9" opacity="0.55" stroke="none">',
@@ -183,33 +178,6 @@ draw_anatomy <- function(loc, size, smv, sma, ca, cha) {
   # ---- tumour ----
   '<circle cx="', tx, '" cy="', ty, '" r="', round(r, 1),
   '" fill="#16232E" opacity="0.82"/>',
-  '<text x="', tx, '" y="', round(ty + r + 15),
-  '" text-anchor="middle" font-family="Inter,sans-serif" font-size="11"
-     font-weight="600" fill="#16232E">', size, ' mm</text>',
-
-  # ---- vessel labels ----
-  '<text x="112" y="74" text-anchor="middle" font-family="Inter,sans-serif"
-         font-size="10.5" font-weight="600" fill="', s_smv$col, '">SMV / PV</text>',
-  '<text x="238" y="234" font-family="Inter,sans-serif" font-size="10.5"
-         font-weight="600" fill="', s_sma$col, '">SMA</text>',
-  '<text x="222" y="58" text-anchor="end" font-family="Inter,sans-serif"
-         font-size="10.5" font-weight="600" fill="', s_ca$col, '">CA</text>',
-  '<text x="214" y="46" text-anchor="middle" font-family="Inter,sans-serif"
-         font-size="10.5" font-weight="600" fill="', s_cha$col, '">CHA</text>',
-  '<text x="166" y="26" text-anchor="middle" font-family="Inter,sans-serif"
-         font-size="10.5" font-weight="600" fill="', s_cha$col, '">PHA</text>',
-  '<text x="206" y="90" font-family="Inter,sans-serif" font-size="10"
-         fill="#C0392B">GDA</text>',
-  '<text x="352" y="70" font-family="Inter,sans-serif" font-size="10"
-         fill="#C0392B">splenic a.</text>',
-  '<text x="356" y="136" font-family="Inter,sans-serif" font-size="10"
-         fill="#3A6EA5">splenic v.</text>',
-
-  # ---- organ labels ----
-  '<text x="150" y="216" text-anchor="middle" font-family="Inter,sans-serif"
-         font-size="10" fill="#A9B6C0">head / uncinate</text>',
-  '<text x="322" y="152" text-anchor="middle" font-family="Inter,sans-serif"
-         font-size="10" fill="#A9B6C0">body / tail</text>',
 
   '</svg>')
 }
@@ -354,14 +322,7 @@ ui <- fluidPage(
         ),
         div(class = "card",
           p(class = "eyebrow", "Tumour\u2013vessel relationship"),
-          uiOutput("anatomy"),
-          div(class = "legend",
-            tags$span(tags$i(style = "background:#C0392B"), "artery"),
-            tags$span(tags$i(style = "background:#3A6EA5"), "vein"),
-            tags$span(tags$i(style = "background:#7FB3D5"), "contact, resectable"),
-            tags$span(tags$i(style = "background:#F0A830"), "borderline"),
-            tags$span(tags$i(style = "background:#5B1A14"), "locally advanced")
-          )
+          uiOutput("anatomy")
         ),
         div(class = "card",
           p(class = "eyebrow", "NCCN resectability status"),
