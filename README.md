@@ -40,29 +40,6 @@ One-time setup: **Settings → Pages → Source → GitHub Actions**.
 The workflow compiles the app with `shinylive`, so R runs inside the visitor's
 browser via webR — no server needed.
 
-## Running locally (optional)
-
-If R is installed:
-
-```r
-shiny::runApp("app")     # interactive
-source("build.R")        # build the static site into docs/
-```
-
----
-
-## Entering the real coefficients
-
-Everything that needs to change lives in **BLOCK 1** at the top of `app/app.R`.
-
-1. Fit the final multivariable model in SPSS.
-2. Copy the `B` column of the *Variables in the Equation* table.
-3. `Constant` → `INTERCEPT`; one `B_` constant per predictor.
-4. Vascular contact has three levels, so SPSS returns **two** coefficients
-   (reference: no contact).
-5. Update `CUTOFF` (Youden index), `AUC_TXT` and `N_TXT`.
-6. Set `DEMO_MODE <- FALSE` to remove the warning banner.
-7. Verify against SPSS predicted probabilities (`PRE_1`) for a few known cases.
 
 ---
 
@@ -74,10 +51,6 @@ cannot be shared publicly. De-identified data may be available from the
 corresponding author on reasonable request.
 
 ---
-
-## Reporting
-
-Reported in accordance with STROBE and TRIPOD.
 
 ## License
 
